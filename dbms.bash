@@ -1,5 +1,5 @@
 #!/bin/bash
-
+shopt -s extglob
 currentDirectory=$(pwd)
 check=0
 
@@ -25,7 +25,24 @@ if [ "$check" == "1" ]; then
     select choice in "Create new database" "List databases" "Drop database" "Connect to database"
     case $reply in 
     1)
-      #createDb
+      #createDb check if exists ---> create
+      #f []
+      # spaciial -numbers -spaces
+      read -p "eneter database name" dirName
+
+      if [[ "$dirName" = ~ [a-zA-Z0-9] ]];then
+      echo "invalid name"
+      else
+      
+     
+      if [ -d $dirName  ]; then
+      echo "DB already exists try a new name"
+      else
+      mkdir $dirName
+      fi
+      fi
+      
+
     ;;
     2)
       #listDb

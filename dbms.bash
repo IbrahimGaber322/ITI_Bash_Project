@@ -1,8 +1,10 @@
 #!/bin/bash
+source dbfunctions.bash
+source tablefunctions.bash
 shopt -s extglob
 currentDirectory=$(pwd)
 check=0
-
+connectedDB=0
 if [ -d "${currentDirectory}/database" ]; then
     echo "Folder exists"
     check=1
@@ -21,39 +23,25 @@ else
 fi
 
 if [ "$check" == "1" ]; then
-    DB = "${currentDirectory}"/database
+    currentDirectory = "${currentDirectory}"/database
     select choice in "Create new database" "List databases" "Drop database" "Connect to database"
     case $reply in 
     1)
-      #createDb check if exists ---> create
-      #f []
-      # spaciial -numbers -spaces
-      read -p "eneter database name" dirName
 
-      if [[ "$dirName" = ~ [a-zA-Z0-9] ]];then
-      echo "invalid name"
-      else
-      
-     
-      if [ -d $dirName  ]; then
-      echo "DB already exists try a new name"
-      else
-      mkdir $dirName
-      fi
-      fi
-      
-
+    #create table
+      createDB $currentDirectory
     ;;
     2)
-      #listDb
+    listDB $currentDirectory 
     ;;
     3)
-      #dropDb
+    dropDB $currentDirectory
     ;;
     4)
-      #connectDb
-    ;;
+    dbName=$(connectDB)
+    [ $dbName != 0 ] &&  connectedDB="${currentDirectory}/${dbName}"    ;;
     esac
 fi
+
 
 echo "Welcome to DBMS"

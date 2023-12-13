@@ -1,118 +1,113 @@
 #!/bin/bash
 
-#create table-->file for data(values) file for metadata(like keys "name or age or anthing this should be an input from user and also data type in or string or pk or not this depends on user choice")
-#file of values should be like ali:22:test
-#file of meta data should be name:age
-#                             pk
-#                             string:int 
-#list table
-#drop table
-#insert into table
-#select from table
-#delete from table
-#update table
-
-
 shopt -s extglob
 
 createTable() {
     read -p "Enter table name: " tableName
 
-if [[ ! "$tableName" =~ ^[a-zA-Z_][a-zA-Z0-9_[:space:]]*$ ]]; then #table name validation
+    if [[ ! "$tableName" =~ ^[a-zA-Z_][a-zA-Z0-9_[:space:]]*$ ]]; then
         echo "Invalid table name. Table names must start with a letter or underscore, followed by letters, numbers, or underscores."
         return
     fi
 
-    tableDir="./$tableName"
-
-    if [ -d "$tableDir" ]; then
+    if [ -d "$1/$tableName" ]; then
         echo "Table '$tableName' already exists."
         return
     fi
 
-    mkdir "$tableDir"
-
-    # Metadata file
-    metadataFile="$tableDir/metadata.txt"
-    touch "$metadataFile"
-
-    # Values file
-    valuesFile="$tableDir/values.txt"
-    touch "$valuesFile"
-
-    read -p "Enter the number of columns: " numColumns
-
-    declare -A primaryKeyValues
-
-    for ((i = 1; i <= numColumns; i++)); do
-        read -p "Enter column $i name: " colName
-        read -p "Enter column $i data type: " colType
-
-if [[ ! "$colType" =~ ^(int|string|bool)$ ]]; then
-    echo "Invalid data type. Supported types: int, string, bool."
-    return
-fi
-
-read -p "Is column $colName a primary key? (y/n): " isPK
-
-if [ "$isPK" = "y" ]; then
-    # validate pk
-    read -p "Enter primary key value for $colName: " pkValue
-    existingPKs=($(awk -F: -v colIndex=$(($i + 1)) '{print $colIndex}' "$metadataFile"))
-    if [ -n "$(printf '%s\n' "${existingPKs[@]}" | grep -w "$pkValue")" ]; then
-        echo "Primary key value must be unique. Value '$pkValue' is already taken for column '$colName'."
+    mkdir "$1/$tableName"
+    if [ $? -ne 0 ]; then
+        echo "Failed to create table '$tableName'."
         return
     fi
+    tableDir="$1/$tableName"
 
-    echo "$colName:$colType:$isPK:$pkValue" >>"$metadataFile"
-    echo "$pkValue" >>"$valuesFile"  # Store primary key value in values file
-else
-    echo "$colName:$colType:$isPK" >>"$metadataFile"
-    read -p "Enter value for $colName ($colType): " value
-    echo "$value" >>"$valuesFile"  # Store value in values file
-fi
+    # Metadata file
+    touch "$tableDir/metadata.txt"
+    metadataFile="$tableDir/metadata.txt"
 
+    # Values file
+    touch "$tableDir/values.txt"
+    valuesFile="$tableDir/values.txt"
 
+    read -p "Enter the number of columns: " colNum
+    
+    hasPK=0
 
+    for ((i = 1; i <= colNum; i++)); do
+        read -p "Enter column $i name: " colName
+        read -p "Enter column $i data type (int|string|bool): " colType
+
+        if [[ ! "$colType" =~ ^(int|string|bool)$ ]]; then
+            echo "Invalid data type. Supported types: int, string, bool."
+            return
+        fi
+
+        isPK="n"
+        ((hasPK == 0)) && read -p "Is column $colName a primary key? (y/n): " isPK
+
+        if [ "$isPK" = "y" ]; then
+            hasPK=1
+        fi
         echo "$colName:$colType:$isPK" >>"$metadataFile"
-         echo "$colName:$colType:$pkvalue" >>"$valuesFile"
-
     done
 
     echo "Table '$tableName' created successfully."
 }
 
+listTables() {
+    tables=$(find "$1" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+    echo "Tables: $tables"
+}
 
+dropTable() {
+    read -p "Enter table name to drop: " tableName
+    if [ -d "$1/$tableName" ]; then
+        read -p "Are you sure you want to drop table '$tableName'? (y/n): " confirm
+        if [ "$confirm" = "y" ]; then
+            rm -r "$1/$tableName"
+            echo "Table '$tableName' dropped successfully."
+        else
+            echo "Drop operation canceled."
+        fi
+    else
+        echo "Table '$tableName' does not exist."
+    fi
+}
 
-options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Quit")
-select option in "${options[@]}"; do
-    case $option in
-        "Create Table")
-            createTable
-            ;;
-        "List Tables")
-            listTables
-            ;;
-        "Drop Table")
-            dropTable
-            ;;
-        "Insert into Table")
-            insertIntoTable
-            ;;
-        "Select From Table")
-            selectFromTable
-            ;;
-        "Delete From Table")
-            deleteFromTable
-            ;;
-        "Update Table")
-            updateTable
-            ;;
-        "Quit")
-            break
-            ;;
-        *)
-            echo "Invalid option."
-            ;;
-    esac
-done
+# Implement other functions (insertIntoTable, selectFromTable, deleteFromTable, updateTable) based on your requirements.
+
+# Example usage:
+# options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Quit")
+# select option in "${options[@]}"; do
+#     case $option in
+#         "Create Table")
+#             createTable
+#             ;;
+#         "List Tables")
+#             listTables
+#             ;;
+#         "Drop Table")
+#             dropTable
+#             ;;
+#         "Insert into Table")
+#             insertIntoTable
+#             ;;
+#         "Select From Table")
+#             selectFromTable
+#             ;;
+#         "Delete From Table")
+#             deleteFromTable
+#             ;;
+#         "Update Table")
+#             updateTable
+#             ;;
+#         "Quit")
+#             break
+#             ;;
+#         *)
+#             echo "Invalid option."
+#             ;;
+#     esac
+# done
+

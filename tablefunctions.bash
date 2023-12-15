@@ -187,6 +187,91 @@ function insertIntoTable() {
     echo >> "$valuesFile"
 }
 
+function updateTable() {
+    # Prompt for table name
+    read -p "Enter table name to update: " tableName
+    tableDir="$1/$tableName"
+
+    # Check if the table directory exists
+    if [ ! -d "$tableDir" ]; then
+        echo "Table '$tableName' does not exist."
+        return
+    fi
+
+    metadataFile="$tableDir/metadata.txt"
+    valuesFile="$tableDir/values.txt"
+
+    # Check if the table has columns
+    if [ ! -s "$metadataFile" ]; then
+        echo "Table '$tableName' has no columns defined."
+        return
+    fi
+
+    # Get the number of lines in metadata file
+    linesNum=$(wc -l < "$metadataFile")
+
+    # Primary values array
+    primArr=()
+
+    while IFS=':' read -r firstValue _; do
+        primArr+=("$firstValue")
+    done < "$valuesFile"
+
+    echo "${primArr[@]}"
+
+    # Prompt for the primary key value to identify the record to update
+    read -p "Enter the primary key value to update: " primaryKeyValue
+
+    # Check if the provided primary key value exists
+    if ! value_exists "$primaryKeyValue" "${primArr[@]}"; then
+        echo "Record with primary key '$primaryKeyValue' not found."
+        return
+    fi
+
+    # Loop through each column in metadata
+    for ((i = 1; i <= linesNum; i++)); do
+        # Extract column information
+        IFS=':' read -ra arr <<< "$(sed -n "$i p" "$metadataFile")"
+        valueName=${arr[0]}
+        valueType=${arr[1]}  # Fix the array index for valueType
+        isPrim=${arr[2]}     # Fix the array index for isPrim
+
+        # Skip if the column is a primary key
+        [ "$isPrim" == "y" ] && continue
+
+        # Prompt user for updated value based on column type
+        while true; do
+            read -p "Enter updated value of $valueName:$valueType (press Enter to keep current value or type 'cancel' to cancel): " updatedValue
+
+            if [ "$updatedValue" == "cancel" ]; then
+                # Handle input cancellation
+                echo "Update canceled."
+                return
+            elif [ -z "$updatedValue" ]; then
+                # Keep the current value
+                break
+            elif [ "$valueType" == "int" ] && [[ ! "$updatedValue" =~ ^[0-9]+$ ]]; then
+                echo "Please enter an integer value."
+            elif [ "$valueType" == "string" ] && [[ ! "$updatedValue" =~ [a-zA-Z]+$ ]]; then
+                echo "Please enter a string (a-zA-z) value."
+            elif [ "$valueType" == "bool" ] && [[ ! "$updatedValue" =~ ^(true|false)$ ]]; then
+                echo "Please enter a boolean value (true or false)."
+            else
+                # Invalid input
+                echo "Invalid $valueName. Please try again or type 'cancel' to cancel update."
+                continue
+            fi
+
+            # Update the values file with the new value with sed command
+            sed -i "s/^$primaryKeyValue:\(.*\)$/$primaryKeyValue:$updatedValue/" "$valuesFile"
+
+            break
+        done
+    done
+
+    echo "Record with primary key '$primaryKeyValue' updated successfully."
+}
+
 
 # Implement other functions (insertIntoTable, selectFromTable, deleteFromTable, updateTable) based on your requirements.
 

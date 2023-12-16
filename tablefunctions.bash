@@ -446,14 +446,14 @@ function selectFromTable() {
 }
 
 # Function to delete a row from a table
-function deleteFromTable() {
+deleteFromTable() {
     # Prompt for table name
     read -p "Enter table name to delete from: " tableName
     tableDir="$1/$tableName"
 
     # Check if the table directory exists
     if [ ! -d "$tableDir" ]; then
-        echo "Table '$tableName' does not exist."
+        echo "Error: Table '$tableName' does not exist."
         return
     fi
 
@@ -462,38 +462,55 @@ function deleteFromTable() {
 
     # Check if the table has columns
     if [ ! -s "$metadataFile" ]; then
-        echo "Table '$tableName' has no columns defined."
+        echo "Error: Table '$tableName' has no columns defined."
         return
     fi
 
     # Prompt for WHERE condition
     read -p "Enter WHERE condition (column=value): " whereCondition
 
-    # Read the WHERE condition
-    IFS="=" read -r whereColumn whereValue <<< "$whereCondition"
-
-    # Validate entered column name in WHERE condition
-    if ! grep -q "^$whereColumn:" "$metadataFile"; then
-        echo "Invalid column '$whereColumn' in WHERE condition. Please enter a valid column name."
+    # Check if WHERE condition is not empty
+    if [ -z "$whereCondition" ]; then
+        echo "Error: No WHERE condition specified. Please enter a WHERE condition."
         return
     fi
 
-    whereLoc=$(awk -F: -v whereColumn="$whereColumn" '$1 == whereColumn {print NR}' "$metadataFile")
+    # Confirm deletion with the user
+    read -p "Are you sure you want to delete rows matching the WHERE condition? (y/n): " confirmDelete
 
-    # Find line numbers in values.txt that match the WHERE condition
-    whereLine=($(awk -F: -v whereLoc="$whereLoc" -v whereValue="$whereValue" '$whereLoc == whereValue {print NR}' "$valuesFile"))
-
-    # Check if any matching lines were found
-    if [ ${#whereLine[@]} -eq 0 ]; then
-        echo "No matching records found for WHERE condition: $whereCondition"
+    # Check user confirmation
+    if [ "$confirmDelete" != "y" ]; then
+        echo "Deletion canceled by the user."
         return
     fi
 
-    # Use awk to delete lines by line numbers from the file
-    for (( i=${#whereLine[@]}-1; i>=0; i-- )); do
-        lineNum=${whereLine[i]}
-        sed -i "${lineNum}d" "$valuesFile"
-    done
+    # Process each condition in WHERE clause
+    while read -r whereCondition; do
+        IFS="=" read -r whereColumn whereValue <<< "$whereCondition"
+
+        # Validate entered column name in WHERE condition
+        if ! grep -q "^$whereColumn:" "$metadataFile"; then
+            echo "Error: Invalid column '$whereColumn' in WHERE condition. Please enter a valid column name."
+            return
+        fi
+
+        whereLoc=$(awk -F: -v whereColumn="$whereColumn" '$1 == whereColumn {print NR}' "$metadataFile")
+
+        # Find line numbers in values.txt that match the WHERE condition
+        whereLine=($(awk -F: -v whereLoc="$whereLoc" -v whereValue="$whereValue" '$whereLoc == whereValue {print NR}' "$valuesFile"))
+
+        # Check if any matching lines were found
+        if [ ${#whereLine[@]} -eq 0 ]; then
+            echo "No matching records found for WHERE condition: $whereCondition"
+            return
+        fi
+
+        # Use awk to delete lines by line numbers from the file
+        for (( i=${#whereLine[@]}-1; i>=0; i-- )); do
+            lineNum=${whereLine[i]}
+            sed -i "${lineNum}d" "$valuesFile"
+        done
+    done <<< "$whereCondition"
 
     echo "Rows matching WHERE condition deleted successfully from table '$tableName'."
 }
@@ -522,6 +539,87 @@ dropTable() {
     fi
 }
 
+
+# Function to search for keywords in all records
+searchInTable() {
+    # Prompt for table name
+    read -p "Enter table name to search in: " tableName
+    tableDir="$1/$tableName"
+
+    # Check if the table directory exists
+    if [ ! -d "$tableDir" ]; then
+        echo "Table '$tableName' does not exist."
+        return
+    fi
+
+    metadataFile="$tableDir/metadata.txt"
+    valuesFile="$tableDir/values.txt"
+
+    # Check if the table has columns
+    if [ ! -s "$metadataFile" ]; then
+        echo "Table '$tableName' has no columns defined."
+        return
+    fi
+
+    # Prompt for column names to search
+    read -p "Enter column names to search (space-separated): " columnNames
+
+    # Validate entered column names
+    if [ -z "$columnNames" ]; then
+        echo "No column names specified. Please enter column names to search."
+        return
+    fi
+
+    # Prompt for keywords to search
+    read -p "Enter keywords to search (space-separated): " keywords
+
+    # Validate entered keywords
+    if [ -z "$keywords" ]; then
+        echo "No keywords specified. Please enter keywords to search."
+        return
+    fi
+
+    # Display headers
+    headers=$(cut -d: -f1 "$metadataFile" | tr '\n' '\t')
+    echo -e "Table columns:\t$headers"
+
+    # Define function to search keyword(s) in a specific column
+    searchKeywordInColumn() {
+        local colName="$1"
+        local keyword="$2"
+
+        # Find the column number
+        local colNum=$(awk -F: -v colName="$colName" '$1 == colName {print NR}' "$metadataFile")
+
+        # Check if the column name exists
+        if [ -z "$colNum" ]; then
+            echo "Column '$colName' does not exist in table '$tableName'."
+            return
+        fi
+
+        # Extract the specified column from values file
+        local colValues=$(awk -F: -v colNum="$colNum" '{print $colNum}' "$valuesFile")
+
+        # Search for the keyword in the column
+        local matchingRows=$(awk -v keyword="$keyword" '$0 ~ keyword {print NR}' "$valuesFile")
+
+        # Display rows that match the keyword search
+        if [ -n "$matchingRows" ]; then
+            echo -e "Matches for keyword '$keyword' in row that contains '$colName':"
+            while read -r rowNum; do
+                echo -e "$(sed -n "${rowNum}p" "$valuesFile")"
+            done <<< "$matchingRows"
+            echo
+        fi
+    }
+
+    # Search for the keyword(s) in the specified column(s)
+    for columnName in $columnNames; do
+        for keyword in $keywords; do
+            searchKeywordInColumn "$columnName" "$keyword"
+        done
+    done
+}
 
 
 

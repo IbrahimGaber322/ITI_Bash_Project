@@ -5,9 +5,13 @@ source tablefunctions.bash
 shopt -s extglob
 
 connectedDB="0"
+# Bold text escape code
+bold="\033[1m"
 
+# Reset formatting escape code
+reset="\033[0m"
 function manageDB() {
-    options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Quit")
+    options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Search Table" "Quit")
     select option in "${options[@]}"; do
         case $option in
             "Create Table")
@@ -30,6 +34,9 @@ function manageDB() {
                 ;;
             "Update Table")
                 updateTable $connectedDB
+                ;;
+            "Search Table")
+                searchInTable $connectedDB
                 ;;
             "Quit")
                 connectedDB="0"
@@ -105,5 +112,5 @@ function main() {
     fi
 }
 
-echo "Welcome to DBMS"
+echo -e "${bold} Welcome to DBMS ${reset}" #// for make it BOLD
 main

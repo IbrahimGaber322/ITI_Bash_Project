@@ -200,6 +200,7 @@ function insertIntoTable() {
 }
 
 
+# Function to update data in a table
 function updateTable() {
     # Prompt for table name
     read -p "Enter table name to update: " tableName
@@ -220,59 +221,108 @@ function updateTable() {
         return
     fi
 
-    # Get the number of lines in metadata file
-    linesNum=$(wc -l < "$metadataFile")
+    # Display available columns for updating
+    availableColumns=$(cut -d: -f1 "$metadataFile" | tr '\n' ' ')
+    echo "Available columns for update: $availableColumns"
 
-    # Primary values array
+    # Prompt for column to update
+    read -p "Enter column to update: " updateColumn
+
+    # Validate entered column name
+    if ! grep -q "^$updateColumn:" "$metadataFile"; then
+        echo "Invalid column '$updateColumn'. Please enter a valid column name."
+        return
+    fi
+    
+    # Get the data type of the column to be updated
+    updateColumnType=$(awk -F: -v updateColumn="$updateColumn" '$1 == updateColumn {print $2}' "$metadataFile")
+    isPrim=$(awk -F: -v updateColumn="$updateColumn" '$1 == updateColumn {print $3}' "$metadataFile")
+
+    # Prompt for WHERE condition
+    read -p "Enter WHERE condition (column=value): " whereCondition
+
+    # Read the WHERE condition
+    IFS="=" read -r whereColumn whereValue <<< "$whereCondition"
+
+    # Validate entered column name in WHERE condition
+    if ! grep -q "^$whereColumn:" "$metadataFile"; then
+        echo "Invalid column '$whereColumn' in WHERE condition. Please enter a valid column name."
+        return
+    fi
+     #updateColumn = age
+     #id=1             ======> whereColumn=id , whereValue=1
+    
+    #id:int:y                                        $1:$2:$3
+    #name:string:n     updateLoc=2                   1:ibrahim:24
+    #age:int:n
+    updateLoc=$(awk -F: -v updateColumn="$updateColumn" '$1 == updateColumn {print NR}' "$metadataFile")
+    whereLoc=$(awk -F: -v whereColumn="$whereColumn" '$1 == whereColumn {print NR}' "$metadataFile")
+    # Find line numbers in values.txt that match the WHERE condition
+    whereLine=($(awk -F: -v whereLoc="$whereLoc" -v whereValue="$whereValue" '$whereLoc == whereValue {print NR}' "$valuesFile"))
+
+    # Check if any matching lines were found
+    if [ ${#whereLine[@]} -eq 0 ]; then
+    echo "No matching records found for WHERE condition: $whereCondition"
+    return
+    fi
+    
+    #primary keys array
     primArr=()
 
     while IFS=':' read -r firstValue _; do
         primArr+=("$firstValue")
     done < "$valuesFile"
 
-    # Prompt for the primary key value to identify the record to update
-    read -p "Enter the primary key value to update: " primaryKeyValue
-
-    # Check if the provided primary key value exists
-    if ! value_exists "$primaryKeyValue" "${primArr[@]}"; then
-        echo "Record with primary key '$primaryKeyValue' not found."
-        return
-    fi
-
-    # Prompt user for updated values for each column
-    updatedValues=()
-    for ((i = 1; i <= linesNum; i++)); do
-        # Extract column information
-        IFS=':' read -ra arr <<< "$(sed -n "$i p" "$metadataFile")"
-        valueName=${arr[0]}
-        valueType=${arr[1]} # Fix the array index for valueType
-        isPrim=${arr[2]}     # Fix the array index for isPrim
-
-        # Prompt user for updated value based on column type
-        while true; do
-            read -p "Enter updated value of $valueName:$valueType (press Enter to keep current value): " updatedValue
-
-            # Keep the current value if the user presses Enter
-            if [ -z "$updatedValue" ]; then
-                break
-            elif [ "$isPrim" == "y" ] && value_exists "$updatedValue" "${primArr[@]}"; then
-                echo "This primary key is already used, pick another value."
-            elif [ "$valueType" = "int" ] && ! [[ "$updatedValue" =~ ^[0-9]+$ ]]; then
-                echo "Please enter an integer value."
-            elif [ "$valueType" = "bool" ] && ! [[ "$updatedValue" =~ ^(true|false)$ ]]; then
-                echo "Please enter a boolean value (true or false)."
-            else
-                updatedValues+=("$updatedValue")
-                break
+    # Prompt for new value
+    while true; do
+        read -p "Enter new value for $updateColumn ($updateColumnType): " newValue
+        #validate duplication of primary key
+        if [ "$isPrim" = "y" ]; then
+            if value_exists "$newValue" "${primArr[@]}"; then
+                echo "Error: Primary key '$newValue' already exists. Please enter a different value."
+                continue
             fi
-        done
+        fi
+        # Validate the new value based on the column type
+        case $updateColumnType in
+            "int")
+                [[ "$newValue" =~ ^[0-9]+$ ]] && break
+                echo "Please enter an integer value."
+                ;;
+            "string")
+                [[ "$newValue" =~ [a-zA-Z]+$ ]] && break
+                echo "Please enter a string (a-zA-Z) value."
+                ;;
+            "bool")
+                [[ "$newValue" =~ ^(true|false)$ ]] && break
+                echo "Please enter a boolean value (true or false)."
+                ;;
+            *)
+                echo "Invalid data type for column '$updateColumn'."
+                return
+                ;;
+        esac
     done
 
-    # Update the record in the values file
-    updatedValues=$(IFS=:; echo "${updatedValues[*]}")
-    sed -i "/^$primaryKeyValue:/c\\$updatedValues" "$valuesFile"
+    ## Update the value in the values file based on the WHERE condition
+    for line in "${whereLine[@]}"; do
+    awk -v line="$line" -v updateLoc="$updateLoc" -v newValue="$newValue" '
+        BEGIN {
+            FS=":";
+            OFS=":";
+        }
+        NR == line {
+            $updateLoc = newValue;
+        }
+        {
+            print;
+        }' "$valuesFile" > "$valuesFile.tmp"
 
-    echo "Record with primary key '$primaryKeyValue' updated successfully."
+    # Replace the original values file with the updated one
+    
+    done
+    mv "$valuesFile.tmp" "$valuesFile"
+    echo "Table '$tableName' updated successfully."
 }
 
 

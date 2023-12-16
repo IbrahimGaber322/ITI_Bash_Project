@@ -1,0 +1,3 @@
+id:int:y
+age:int:n
+name:string:n

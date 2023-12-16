@@ -200,7 +200,6 @@ function insertIntoTable() {
 }
 
 
-
 function updateTable() {
     # Prompt for table name
     read -p "Enter table name to update: " tableName
@@ -271,10 +270,12 @@ function updateTable() {
     done
 
     # Update the record in the values file
-    sed -i "/^$primaryKeyValue:/c\\${updatedValues[*]}" "$valuesFile"
+    updatedValues=$(IFS=:; echo "${updatedValues[*]}")
+    sed -i "/^$primaryKeyValue:/c\\$primaryKeyValue:$updatedValues" "$valuesFile"
 
     echo "Record with primary key '$primaryKeyValue' updated successfully."
 }
+
 
 
 

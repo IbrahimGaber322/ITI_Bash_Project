@@ -51,7 +51,8 @@ createTable() {
     read -p "Enter the number of columns: " colNum
 
     hasPK=0
-
+    pkLine=""
+    colArr=()
     for ((i = 1; i <= colNum; i++)); do
         read -p "Enter column $i name: " colName
         read -p "Enter column $i data type (int|string|bool): " colType
@@ -66,12 +67,24 @@ createTable() {
 
         if [ "$isPK" = "y" ]; then
             hasPK=1
+            pkLine="$colName:$colType:$isPK"
+        else
+        colArr+=("$colName:$colType:$isPK")
         fi
 
-        echo "$colName:$colType:$isPK" >>"$metadataFile"
     done
-
+    
+   if  [ -n "$pkLine" ];then  
+    
+    echo "$pkLine" > "$metadataFile"
+    for el in "${colArr[@]}"; do
+    echo "$el" >> "$metadataFile"
+    done
     echo "Table '$tableName' created successfully."
+    else
+     rm -r "$tableDir"
+    echo "Failed to create table without primary key."
+    fi
 }
 
 listTables() {
@@ -128,7 +141,6 @@ function insertIntoTable() {
         primArr+=("$firstValue")
     done < "$valuesFile"
 
-    echo $primArr
     inputString=""
     # Loop through each column in metadata
     for ((i = 1; i <= linesNum; i++)); do
@@ -187,6 +199,8 @@ function insertIntoTable() {
     echo >> "$valuesFile"
 }
 
+
+
 function updateTable() {
     # Prompt for table name
     read -p "Enter table name to update: " tableName
@@ -217,8 +231,6 @@ function updateTable() {
         primArr+=("$firstValue")
     done < "$valuesFile"
 
-    echo "${primArr[@]}"
-
     # Prompt for the primary key value to identify the record to update
     read -p "Enter the primary key value to update: " primaryKeyValue
 
@@ -228,84 +240,55 @@ function updateTable() {
         return
     fi
 
-    # Loop through each column in metadata
+    # Prompt user for updated values for each column
+    updatedValues=()
     for ((i = 1; i <= linesNum; i++)); do
         # Extract column information
         IFS=':' read -ra arr <<< "$(sed -n "$i p" "$metadataFile")"
         valueName=${arr[0]}
-        valueType=${arr[1]}  # Fix the array index for valueType
+        valueType=${arr[1]} # Fix the array index for valueType
         isPrim=${arr[2]}     # Fix the array index for isPrim
-
-        # Skip if the column is a primary key
-        [ "$isPrim" == "y" ] && continue
 
         # Prompt user for updated value based on column type
         while true; do
-            read -p "Enter updated value of $valueName:$valueType (press Enter to keep current value or type 'cancel' to cancel): " updatedValue
+            read -p "Enter updated value of $valueName:$valueType (press Enter to keep current value): " updatedValue
 
-            if [ "$updatedValue" == "cancel" ]; then
-                # Handle input cancellation
-                echo "Update canceled."
-                return
-            elif [ -z "$updatedValue" ]; then
-                # Keep the current value
+            # Keep the current value if the user presses Enter
+            if [ -z "$updatedValue" ]; then
+                updatedValues+=("$(awk -F: -v col="$i" '{printf $col}' "$valuesFile")")
                 break
-            elif [ "$valueType" == "int" ] && [[ ! "$updatedValue" =~ ^[0-9]+$ ]]; then
+            elif [ "$isPrim" == "y" ] && value_exists "$updatedValue" "${primArr[@]}"; then
+                echo "This primary key is already used, pick another value."
+            elif [ "$valueType" = "int" ] && ! [[ "$updatedValue" =~ ^[0-9]+$ ]]; then
                 echo "Please enter an integer value."
-            elif [ "$valueType" == "string" ] && [[ ! "$updatedValue" =~ [a-zA-Z]+$ ]]; then
-                echo "Please enter a string (a-zA-z) value."
-            elif [ "$valueType" == "bool" ] && [[ ! "$updatedValue" =~ ^(true|false)$ ]]; then
+            elif [ "$valueType" = "bool" ] && ! [[ "$updatedValue" =~ ^(true|false)$ ]]; then
                 echo "Please enter a boolean value (true or false)."
             else
-                # Invalid input
-                echo "Invalid $valueName. Please try again or type 'cancel' to cancel update."
-                continue
+                updatedValues+=("$updatedValue")
+                break
             fi
-
-            # Update the values file with the new value with sed command
-            sed -i "s/^$primaryKeyValue:\(.*\)$/$primaryKeyValue:$updatedValue/" "$valuesFile"
-
-            break
         done
     done
+
+    # Update the record in the values file
+    sed -i "/^$primaryKeyValue:/c\\${updatedValues[*]}" "$valuesFile"
 
     echo "Record with primary key '$primaryKeyValue' updated successfully."
 }
 
 
-# Implement other functions (insertIntoTable, selectFromTable, deleteFromTable, updateTable) based on your requirements.
 
-# Example usage:
-# options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Quit")
-# select option in "${options[@]}"; do
-#     case $option in
-#         "Create Table")
-#             createTable
-#             ;;
-#         "List Tables")
-#             listTables
-#             ;;
-#         "Drop Table")
-#             dropTable
-#             ;;
-#         "Insert into Table")
-#             insertIntoTable
-#             ;;
-#         "Select From Table")
-#             selectFromTable
-#             ;;
-#         "Delete From Table")
-#             deleteFromTable
-#             ;;
-#         "Update Table")
-#             updateTable
-#             ;;
-#         "Quit")
-#             break
-#             ;;
-#         *)
-#             echo "Invalid option."
-#             ;;
-#     esac
-# done
+
+
+
+
+
+
+
+
+
+
+
+
+
 

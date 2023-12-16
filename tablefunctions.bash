@@ -445,6 +445,58 @@ function selectFromTable() {
         }' "$valuesFile"
 }
 
+# Function to delete a row from a table
+function deleteFromTable() {
+    # Prompt for table name
+    read -p "Enter table name to delete from: " tableName
+    tableDir="$1/$tableName"
+
+    # Check if the table directory exists
+    if [ ! -d "$tableDir" ]; then
+        echo "Table '$tableName' does not exist."
+        return
+    fi
+
+    metadataFile="$tableDir/metadata.txt"
+    valuesFile="$tableDir/values.txt"
+
+    # Check if the table has columns
+    if [ ! -s "$metadataFile" ]; then
+        echo "Table '$tableName' has no columns defined."
+        return
+    fi
+
+    # Prompt for WHERE condition
+    read -p "Enter WHERE condition (column=value): " whereCondition
+
+    # Read the WHERE condition
+    IFS="=" read -r whereColumn whereValue <<< "$whereCondition"
+
+    # Validate entered column name in WHERE condition
+    if ! grep -q "^$whereColumn:" "$metadataFile"; then
+        echo "Invalid column '$whereColumn' in WHERE condition. Please enter a valid column name."
+        return
+    fi
+
+    whereLoc=$(awk -F: -v whereColumn="$whereColumn" '$1 == whereColumn {print NR}' "$metadataFile")
+
+    # Find line numbers in values.txt that match the WHERE condition
+    whereLine=($(awk -F: -v whereLoc="$whereLoc" -v whereValue="$whereValue" '$whereLoc == whereValue {print NR}' "$valuesFile"))
+
+    # Check if any matching lines were found
+    if [ ${#whereLine[@]} -eq 0 ]; then
+        echo "No matching records found for WHERE condition: $whereCondition"
+        return
+    fi
+
+    # Use awk to delete lines by line numbers from the file
+    for (( i=${#whereLine[@]}-1; i>=0; i-- )); do
+        lineNum=${whereLine[i]}
+        sed -i "${lineNum}d" "$valuesFile"
+    done
+
+    echo "Rows matching WHERE condition deleted successfully from table '$tableName'."
+}
 
 
 

@@ -254,7 +254,6 @@ function updateTable() {
 
             # Keep the current value if the user presses Enter
             if [ -z "$updatedValue" ]; then
-                updatedValues+=("$(awk -F: -v col="$i" '{printf $col}' "$valuesFile")")
                 break
             elif [ "$isPrim" == "y" ] && value_exists "$updatedValue" "${primArr[@]}"; then
                 echo "This primary key is already used, pick another value."
@@ -271,10 +270,11 @@ function updateTable() {
 
     # Update the record in the values file
     updatedValues=$(IFS=:; echo "${updatedValues[*]}")
-    sed -i "/^$primaryKeyValue:/c\\$primaryKeyValue:$updatedValues" "$valuesFile"
+    sed -i "/^$primaryKeyValue:/c\\$updatedValues" "$valuesFile"
 
     echo "Record with primary key '$primaryKeyValue' updated successfully."
 }
+
 
 
 

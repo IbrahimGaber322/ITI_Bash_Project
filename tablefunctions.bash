@@ -498,6 +498,30 @@ function deleteFromTable() {
     echo "Rows matching WHERE condition deleted successfully from table '$tableName'."
 }
 
+# Function to drop a table
+dropTable() {
+    # Prompt user to enter the name of the table to drop
+    read -p "Enter table name to drop: " tableName
+
+    # Check if the specified table directory exists
+    if [ -d "$1/$tableName" ]; then
+        # Ask for confirmation before dropping the table
+        read -p "Are you sure you want to drop table '$tableName'? (y/n): " confirm
+
+        # If user confirms, remove the table directory
+        if [ "$confirm" = "y" ]; then
+            rm -r "$1/$tableName"
+            echo "Table '$tableName' dropped successfully."
+        else
+            # If user cancels, inform them that the drop operation is canceled
+            echo "Drop operation canceled."
+        fi
+    else
+        # If the specified table does not exist, inform the user
+        echo "Table '$tableName' does not exist."
+    fi
+}
+
 
 
 

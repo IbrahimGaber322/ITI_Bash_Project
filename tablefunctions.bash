@@ -325,6 +325,127 @@ function updateTable() {
     echo "Table '$tableName' updated successfully."
 }
 
+function selectFromTable() {
+    # Prompt for table name
+    read -p "Enter table name to select from: " tableName
+    tableDir="$1/$tableName"
+
+    # Check if the table directory exists
+    if [ ! -d "$tableDir" ]; then
+        echo "Table '$tableName' does not exist."
+        return
+    fi
+
+    metadataFile="$tableDir/metadata.txt"
+    valuesFile="$tableDir/values.txt"
+
+    # Check if the table has columns
+    if [ ! -s "$metadataFile" ]; then
+        echo "Table '$tableName' has no columns defined."
+        return
+    fi
+
+    # Display column headers
+    headers=$(cut -d: -f1 "$metadataFile" | tr '\n' '\t')
+    echo -e "Table columns:\t$headers"
+
+    # Prompt for columns to select
+    while true; do
+        read -p "Enter columns you want to select separated by space. (Enter * to select all): " columns
+
+        if [ "$columns" == "" ]; then
+            return
+        fi
+
+        # If '*' is entered, select all columns
+        if [ "$columns" == "*" ]; then
+            columns=$(cut -d: -f1 "$metadataFile" | tr '\n' ' ')
+            break
+        fi
+
+        # Validate entered column names
+        invalidColumns=()
+        for col in $columns; do
+            if ! grep -q "^$col:" "$metadataFile"; then
+                invalidColumns+=("$col")
+            fi
+        done
+
+        # Display error for invalid columns
+        if [ ${#invalidColumns[@]} -eq 0 ]; then
+            break
+        else
+            echo "Invalid column(s): ${invalidColumns[*]}. Please enter valid column names."
+        fi
+    done
+
+    # Prompt for WHERE condition
+    read -p "Enter WHERE condition (column=value split by space for multiple conditions, type 'cancel' to exit): " inputString
+
+    # Break the loop if 'cancel' is entered
+    if [ "$inputString" == "cancel" ]; then
+        return
+    fi
+
+    # Read the WHERE conditions
+    read -ra whereCondition <<< "$inputString"
+
+    # Validate entered column names in WHERE conditions
+    while true; do
+        invalidColumns=()
+        for el in "${whereCondition[@]}"; do
+            IFS="=" read -r col_name _ <<< "$el"
+            if ! grep -q "^$col_name:" "$metadataFile"; then
+                invalidColumns+=("$col_name")
+            fi
+        done
+
+        # Display error for invalid columns
+        if [ ${#invalidColumns[@]} -eq 0 ]; then
+            break
+        else
+            echo "Invalid column(s) in WHERE condition: ${invalidColumns[*]}. Please enter valid column names."
+        fi
+    done
+
+    # Display selected data
+    headers=$(echo "$columns" | tr ' ' '\t')
+    echo -e "$headers"
+    awk -F: -v columns="$columns" -v conditions="${whereCondition[*]}" -v metadataFile="$metadataFile" '
+        BEGIN {
+            OFS="\t";
+            split(columns, cols, " ");
+            split(conditions, where, " ");
+
+            # Read metadata and store column indices
+            while (getline < metadataFile > 0) {
+                split($0, metadata, ":");
+                metadataIndices[metadata[1]] = ++indexCounter;
+            }
+            close(metadataFile);
+        }
+        {
+            pass = 1;
+            for (i in where) {
+                split(where[i], condition, "=");
+                col_name = condition[1];
+                col_value = condition[2];
+                if (metadataIndices[col_name] && $metadataIndices[col_name] != col_value) {
+                    pass = 0;
+                    break;
+                }
+            }
+            if (pass) {
+                for (i in cols) {
+                    col_index = metadataIndices[cols[i]];
+                    printf "%s\t", $col_index;
+                }
+                print "";
+            }
+        }' "$valuesFile"
+}
+
+
 
 
 

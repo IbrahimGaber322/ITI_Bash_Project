@@ -249,24 +249,26 @@ function updateTable() {
         echo "Invalid column '$whereColumn' in WHERE condition. Please enter a valid column name."
         return
     fi
-     #updateColumn = age
-     #id=1             ======> whereColumn=id , whereValue=1
     
+    #updateColumn = age
+    #id=1             ======> whereColumn=id , whereValue=1
+
     #id:int:y                                        $1:$2:$3
     #name:string:n     updateLoc=2                   1:ibrahim:24
     #age:int:n
     updateLoc=$(awk -F: -v updateColumn="$updateColumn" '$1 == updateColumn {print NR}' "$metadataFile")
     whereLoc=$(awk -F: -v whereColumn="$whereColumn" '$1 == whereColumn {print NR}' "$metadataFile")
+
     # Find line numbers in values.txt that match the WHERE condition
     whereLine=($(awk -F: -v whereLoc="$whereLoc" -v whereValue="$whereValue" '$whereLoc == whereValue {print NR}' "$valuesFile"))
 
     # Check if any matching lines were found
     if [ ${#whereLine[@]} -eq 0 ]; then
-    echo "No matching records found for WHERE condition: $whereCondition"
-    return
+        echo "No matching records found for WHERE condition: $whereCondition"
+        return
     fi
     
-    #primary keys array
+    # Primary keys array
     primArr=()
 
     while IFS=':' read -r firstValue _; do
@@ -276,13 +278,37 @@ function updateTable() {
     # Prompt for new value
     while true; do
         read -p "Enter new value for $updateColumn ($updateColumnType): " newValue
-        #validate duplication of primary key
+        maxChars=20
+        if [[ "${#newValue}" -le "$maxChars" ]]; then
+            echo "String length is within the allowed limit."
+        else
+            echo "String length exceeds the allowed limit of $maxChars characters."
+
+            # Ask the user if they want to continue or cancel the update
+            read -p "Do you want to continue? (y/n): " continueUpdate
+            case $continueUpdate in
+                [Yy])
+                    # Continue the update
+                    ;;
+                [Nn])
+                    echo "Update canceled. Table remains unchanged."
+                    return
+                    ;;
+                *)
+                    echo "Invalid input. Update canceled. Table remains unchanged."
+                    return
+                    ;;
+            esac
+        fi
+
+        # Validate duplication of primary key
         if [ "$isPrim" = "y" ]; then
             if value_exists "$newValue" "${primArr[@]}"; then
                 echo "Error: Primary key '$newValue' already exists. Please enter a different value."
                 continue
             fi
         fi
+
         # Validate the new value based on the column type
         case $updateColumnType in
             "int")
@@ -304,26 +330,27 @@ function updateTable() {
         esac
     done
 
-    ## Update the value in the values file based on the WHERE condition
+    # Update the value in the values file based on the WHERE condition
     for line in "${whereLine[@]}"; do
-    awk -v line="$line" -v updateLoc="$updateLoc" -v newValue="$newValue" '
-        BEGIN {
-            FS=":";
-            OFS=":";
-        }
-        NR == line {
-            $updateLoc = newValue;
-        }
-        {
-            print;
-        }' "$valuesFile" > "$valuesFile.tmp"
+        awk -v line="$line" -v updateLoc="$updateLoc" -v newValue="$newValue" '
+            BEGIN {
+                FS=":";
+                OFS=":";
+            }
+            NR == line {
+                $updateLoc = newValue;
+            }
+            {
+                print;
+            }' "$valuesFile" > "$valuesFile.tmp"
 
-    # Replace the original values file with the updated one
-    
+        # Replace the original values file with the updated one
     done
+
     mv "$valuesFile.tmp" "$valuesFile"
     echo "Table '$tableName' updated successfully."
 }
+
 
 function selectFromTable() {
     # Prompt for table name
@@ -379,7 +406,11 @@ function selectFromTable() {
         fi
     done
 
-    # Prompt for WHERE condition
+   
+
+    # Validate entered column names in WHERE conditions
+    while true; do
+     # Prompt for WHERE condition
     read -p "Enter WHERE condition (column=value split by space for multiple conditions, type 'cancel' to exit): " inputString
 
     # Break the loop if 'cancel' is entered
@@ -389,9 +420,6 @@ function selectFromTable() {
 
     # Read the WHERE conditions
     read -ra whereCondition <<< "$inputString"
-
-    # Validate entered column names in WHERE conditions
-    while true; do
         invalidColumns=()
         for el in "${whereCondition[@]}"; do
             IFS="=" read -r col_name _ <<< "$el"
@@ -605,11 +633,12 @@ searchInTable() {
 
         # Display rows that match the keyword search
         if [ -n "$matchingRows" ]; then
-            echo -e "Matches for keyword '$keyword' in row that contains '$colName':"
+            echo -e "\nMatches for keyword '$keyword' in row(s) that contain '$colName':"
             while read -r rowNum; do
-                echo -e "$(sed -n "${rowNum}p" "$valuesFile")"
+                echo -e "$(sed -n "${rowNum}p" "$valuesFile")\n"
             done <<< "$matchingRows"
-            echo
+        else
+            echo  "\nNo matches found for keyword '$keyword' in column '$colName'." #
         fi
     }
 
@@ -622,10 +651,24 @@ searchInTable() {
 }
 
 
+connectedDB=""
 
+function disconnectDB() {
+    if [ -n "$connectedDB" ]; then
+        if cd "$OLDPWD"; then
+            echo "Disconnected from the database: $connectedDB"
+            connectedDB=""
+        else
+            echo "Error: Could not disconnect from the database."
+            return 1  # Failure
+        fi
+    else
+        echo "Error: Not currently connected to any database."
+        return 1  # Failure
+    fi
 
-
-
+    main  # Return to the main menu
+}
 
 
 

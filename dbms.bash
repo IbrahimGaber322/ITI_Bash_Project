@@ -4,6 +4,7 @@ source dbfunctions.bash
 source tablefunctions.bash
 shopt -s extglob
 
+
 connectedDB="0"
 # Bold text escape code
 bold="\033[1m"
@@ -11,7 +12,7 @@ bold="\033[1m"
 # Reset formatting escape code
 reset="\033[0m"
 function manageDB() {
-    options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Search Table" "Quit")
+    options=("Create Table" "List Tables" "Drop Table" "Insert into Table" "Select From Table" "Delete From Table" "Update Table" "Search Table"  "Disconnect DB" "Quit")
     select option in "${options[@]}"; do
         case $option in
             "Create Table")
@@ -38,6 +39,9 @@ function manageDB() {
             "Search Table")
                 searchInTable $connectedDB
                 ;;
+           "Disconnect DB")
+                disconnectDB 
+                ;;           
             "Quit")
                 connectedDB="0"
                 main

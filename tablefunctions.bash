@@ -16,10 +16,24 @@ function value_exists() {
 
     return 1  # Value does not exist in the array
 }
+lengthExceeds() {
+    local string="$1"
+    local maxChars=20
+
+    if [[ "${#string}" -le "$maxChars" ]]; then
+        return 1  # String length is within the allowed limit
+    else
+        echo "Input length exceeds the allowed limit of $maxChars characters."
+        return 0  # String length exceeds the allowed limit
+    fi
+}
 
 createTable() {
     read -p "Enter table name: " tableName
-
+    if lengthExceeds $tableName; then
+            return
+    fi
+    tableName="${tableName// /_}"
     if [[ ! "$tableName" =~ ^[a-zA-Z_][a-zA-Z0-9_[:space:]]*$ ]]; then
         echo "Invalid table name. Table names must start with a letter or underscore, followed by letters, numbers, or underscores."
         return
@@ -94,7 +108,7 @@ listTables() {
 
 dropTable() {
     read -p "Enter table name to drop: " tableName
-
+    tableName="${tableName// /_}"
     if [ -d "$1/$tableName" ]; then
         read -p "Are you sure you want to drop table '$tableName'? (y/n): " confirm
 
@@ -163,7 +177,9 @@ function insertIntoTable() {
                 echo "Data corrupted for column '$valueName'."
                 return
             fi
-
+            if lengthExceeds $inputValue; then
+             continue
+            fi
             if [ "$inputValue" == "cancel" ]; then
                 # Handle input cancellation
                 echo "Input canceled."
@@ -186,7 +202,7 @@ function insertIntoTable() {
                 echo "Invalid $valueName. Please try again or type 'cancel' to cancel input."
             fi
         done
-
+        inputValue="${inputValue// /_}"
         # Append the input value to the values file
         if ((i == linesNum)); then
             inputString+="$inputValue"
@@ -277,28 +293,14 @@ function updateTable() {
 
     # Prompt for new value
     while true; do
-        read -p "Enter new value for $updateColumn ($updateColumnType): " newValue
-        maxChars=20
-        if [[ "${#newValue}" -le "$maxChars" ]]; then
-            echo "String length is within the allowed limit."
-        else
-            echo "String length exceeds the allowed limit of $maxChars characters."
-
-            # Ask the user if they want to continue or cancel the update
-            read -p "Do you want to continue? (y/n): " continueUpdate
-            case $continueUpdate in
-                [Yy])
-                    # Continue the update
-                    ;;
-                [Nn])
-                    echo "Update canceled. Table remains unchanged."
-                    return
-                    ;;
-                *)
-                    echo "Invalid input. Update canceled. Table remains unchanged."
-                    return
-                    ;;
-            esac
+        read -p "Enter new value for $updateColumn ($updateColumnType), (type "cancel" to cancel): " newValue
+        if [[ "${newValue}" == "cancel" ]]; then
+            echo "Cancelled update"
+            break
+        fi
+        newValue="${newValue// /_}"
+        if lengthExceeds $newValue; then
+            continue
         fi
 
         # Validate duplication of primary key
@@ -329,8 +331,9 @@ function updateTable() {
                 ;;
         esac
     done
-
+   
     # Update the value in the values file based on the WHERE condition
+    if [[ "${newValue}" != "cancel" ]]; then
     for line in "${whereLine[@]}"; do
         awk -v line="$line" -v updateLoc="$updateLoc" -v newValue="$newValue" '
             BEGIN {
@@ -349,6 +352,7 @@ function updateTable() {
 
     mv "$valuesFile.tmp" "$valuesFile"
     echo "Table '$tableName' updated successfully."
+    fi
 }
 
 
@@ -406,20 +410,18 @@ function selectFromTable() {
         fi
     done
 
-   
-
     # Validate entered column names in WHERE conditions
     while true; do
-     # Prompt for WHERE condition
-    read -p "Enter WHERE condition (column=value split by space for multiple conditions, type 'cancel' to exit): " inputString
+        # Prompt for WHERE condition
+        read -p "Enter WHERE condition (column=value split by space for multiple conditions, type 'cancel' to exit): " inputString
+        
+        # Break the loop if 'cancel' is entered
+        if [ "$inputString" == "cancel" ]; then
+            return
+        fi
 
-    # Break the loop if 'cancel' is entered
-    if [ "$inputString" == "cancel" ]; then
-        return
-    fi
-
-    # Read the WHERE conditions
-    read -ra whereCondition <<< "$inputString"
+        # Read the WHERE conditions
+        read -ra whereCondition <<< "$inputString"
         invalidColumns=()
         for el in "${whereCondition[@]}"; do
             IFS="=" read -r col_name _ <<< "$el"
@@ -470,7 +472,7 @@ function selectFromTable() {
                 }
                 print "";
             }
-        }' "$valuesFile"
+        }' "$valuesFile" | column -t
 }
 
 # Function to delete a row from a table
@@ -649,27 +651,6 @@ searchInTable() {
         done
     done
 }
-
-
-connectedDB=""
-
-function disconnectDB() {
-    if [ -n "$connectedDB" ]; then
-        if cd "$OLDPWD"; then
-            echo "Disconnected from the database: $connectedDB"
-            connectedDB=""
-        else
-            echo "Error: Could not disconnect from the database."
-            return 1  # Failure
-        fi
-    else
-        echo "Error: Not currently connected to any database."
-        return 1  # Failure
-    fi
-
-    main  # Return to the main menu
-}
-
 
 
 

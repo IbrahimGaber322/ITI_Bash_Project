@@ -36,9 +36,6 @@ This script is a simple Database Management System (DBMS) implemented in Bash. I
   - Update Table
   - Search Table
 
-- **Miscellaneous:**
-  - Quit
-
 ## Script Structure
 
 - `dbfunctions.bash`: Contains functions related to database operations.
